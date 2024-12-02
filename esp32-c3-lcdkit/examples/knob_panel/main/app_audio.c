@@ -66,6 +66,18 @@ esp_err_t audio_handle_info(PDM_SOUND_TYPE voice)
     case SOUND_TYPE_FACTORY:
         sprintf(filepath, "%s/%s", CONFIG_BSP_SPIFFS_MOUNT_POINT, "factory.mp3");
         break;
+    case SOUND_TYPE_25:
+        sprintf(filepath, "%s/%s", CONFIG_BSP_SPIFFS_MOUNT_POINT, "25_va.wav");
+        break;
+    case SOUND_TYPE_50:
+        sprintf(filepath, "%s/%s", CONFIG_BSP_SPIFFS_MOUNT_POINT, "50_va.wav");
+        break;
+    case SOUND_TYPE_75:
+        sprintf(filepath, "%s/%s", CONFIG_BSP_SPIFFS_MOUNT_POINT, "75_va.wav");
+        break;
+    case SOUND_TYPE_100:
+        sprintf(filepath, "%s/%s", CONFIG_BSP_SPIFFS_MOUNT_POINT, "100_va.wav");
+        break;
     }
 
     FILE *fp = fopen(filepath, "r");
