@@ -208,9 +208,12 @@ void ui_light_2color_init(lv_obj_t *parent)
 static bool light_2color_layer_enter_cb(void *layer)
 {
     
+	/*
 	if (syncEventGroup == NULL) {
         init_voice_announcement();
-    }
+    }*/
+	current_light_level = 0;
+	init_voice_announcement();
 	//xTaskCreate(voice_announcement_task, "VoiceAnnouncement", 2048, NULL, 5, &AnnounceTask);
 
     bool ret = false;
