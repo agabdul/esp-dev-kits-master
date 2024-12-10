@@ -10,10 +10,66 @@
 #include "lv_example_pub.h"
 #include "lv_example_image.h"
 #include "bsp/esp-bsp.h"
+#include "app_audio.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 
 static bool light_2color_layer_enter_cb(void *layer);
 static bool light_2color_layer_exit_cb(void *layer);
 static void light_2color_layer_timer_cb(lv_timer_t *tmr);
+
+#define EVENT_VOICE_ANNOUNCE_BIT (1 << 1)
+
+static EventGroupHandle_t syncEventGroup;
+static uint8_t current_light_level = 0;
+static TaskHandle_t AnnounceTask;
+
+void voice_announcement_task(void *param) {
+    while (1) {
+		
+        // Wait for signal from lighting control logic
+        xEventGroupWaitBits(syncEventGroup, EVENT_VOICE_ANNOUNCE_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+		
+        // Announce current light level
+        switch (current_light_level) {
+            case 0:
+                //audio_handle_info(SOUND_TYPE_25);
+                break;
+            case 25:
+                audio_handle_info(SOUND_TYPE_25);
+                break;
+            case 50:
+                audio_handle_info(SOUND_TYPE_50);
+                break;
+            case 75:
+                audio_handle_info(SOUND_TYPE_75);
+                break;
+            case 100:
+                audio_handle_info(SOUND_TYPE_100);
+                break;
+            default:
+                printf("Invalid light level\n");
+                break;
+        }
+		
+		//printf("VOICE ANNOUNCEMENT TASK REPORT\n");
+        vTaskDelay(pdMS_TO_TICKS(500)); // Simulate playback duration
+    }
+};
+
+
+void init_voice_announcement() {
+    syncEventGroup = xEventGroupCreate();
+    if (syncEventGroup == NULL) {
+        printf("Failed to create Event Group\n");
+        return;
+    }
+
+    xTaskCreate(voice_announcement_task, "VoiceAnnouncement", 2048, NULL, 5, &AnnounceTask);
+};
 
 typedef enum {
     LIGHT_CCK_WARM,
@@ -151,6 +207,15 @@ void ui_light_2color_init(lv_obj_t *parent)
 
 static bool light_2color_layer_enter_cb(void *layer)
 {
+    
+	/*
+	if (syncEventGroup == NULL) {
+        init_voice_announcement();
+    }*/
+	current_light_level = 0;
+	init_voice_announcement();
+	//xTaskCreate(voice_announcement_task, "VoiceAnnouncement", 2048, NULL, 5, &AnnounceTask);
+
     bool ret = false;
 
     LV_LOG_USER("");
@@ -171,6 +236,10 @@ static bool light_2color_layer_enter_cb(void *layer)
 
 static bool light_2color_layer_exit_cb(void *layer)
 {
+	
+	//Kill child announcement process.
+	vTaskDelete(AnnounceTask);
+	
     LV_LOG_USER("");
     bsp_led_rgb_set(0x00, 0x00, 0x00);
     return true;
@@ -232,5 +301,12 @@ static void light_2color_layer_timer_cb(lv_timer_t *tmr)
                 break;
             }
         }
+		
+        uint8_t new_light_level = light_xor.light_pwm;
+            if (new_light_level != current_light_level) {
+                current_light_level = new_light_level;
+                xEventGroupSetBits(syncEventGroup, EVENT_VOICE_ANNOUNCE_BIT);
+            }
+		
     }
 }
