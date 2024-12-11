@@ -24,8 +24,8 @@ static void light_2color_layer_timer_cb(lv_timer_t *tmr);
 #define EVENT_VOICE_ANNOUNCE_BIT (1 << 1)
 
 static EventGroupHandle_t syncEventGroup;
-static uint8_t current_light_level = 0;
-static TaskHandle_t AnnounceTask;
+static uint8_t current_light_level = 0; //Track light level in a way that is accessible to child process.
+static TaskHandle_t AnnounceTask; //Descriptor used to access the announcement task.
 
 void voice_announcement_task(void *param) {
     while (1) {
@@ -36,7 +36,6 @@ void voice_announcement_task(void *param) {
         // Announce current light level
         switch (current_light_level) {
             case 0:
-                //audio_handle_info(SOUND_TYPE_25);
                 break;
             case 25:
                 audio_handle_info(SOUND_TYPE_25);
@@ -55,19 +54,21 @@ void voice_announcement_task(void *param) {
                 break;
         }
 		
-		//printf("VOICE ANNOUNCEMENT TASK REPORT\n");
         vTaskDelay(pdMS_TO_TICKS(500)); // Simulate playback duration
     }
 };
 
 
 void init_voice_announcement() {
+	
+	//Attempt to create event group.
     syncEventGroup = xEventGroupCreate();
     if (syncEventGroup == NULL) {
         printf("Failed to create Event Group\n");
         return;
     }
 
+	//Create new task for voice announcements.
     xTaskCreate(voice_announcement_task, "VoiceAnnouncement", 2048, NULL, 5, &AnnounceTask);
 };
 
@@ -207,14 +208,10 @@ void ui_light_2color_init(lv_obj_t *parent)
 
 static bool light_2color_layer_enter_cb(void *layer)
 {
-    
-	/*
-	if (syncEventGroup == NULL) {
-        init_voice_announcement();
-    }*/
-	current_light_level = 0;
-	init_voice_announcement();
-	//xTaskCreate(voice_announcement_task, "VoiceAnnouncement", 2048, NULL, 5, &AnnounceTask);
+    //NEW ADDITION
+	current_light_level = 0; //Reset variable to avoid issues when re-entering layer.
+	init_voice_announcement(); //Spin up announcement task.
+
 
     bool ret = false;
 
@@ -237,8 +234,8 @@ static bool light_2color_layer_enter_cb(void *layer)
 static bool light_2color_layer_exit_cb(void *layer)
 {
 	
-	//Kill child announcement process.
-	vTaskDelete(AnnounceTask);
+	//NEW ADDITION
+	vTaskDelete(AnnounceTask); //Kill child task when exiting layer.
 	
     LV_LOG_USER("");
     bsp_led_rgb_set(0x00, 0x00, 0x00);
@@ -303,10 +300,10 @@ static void light_2color_layer_timer_cb(lv_timer_t *tmr)
         }
 		
         uint8_t new_light_level = light_xor.light_pwm;
-            if (new_light_level != current_light_level) {
-                current_light_level = new_light_level;
-                xEventGroupSetBits(syncEventGroup, EVENT_VOICE_ANNOUNCE_BIT);
-            }
+        if (new_light_level != current_light_level) { //Compare numbers to determine if light level has changed.
+            current_light_level = new_light_level; //Adjust global variable.
+            xEventGroupSetBits(syncEventGroup, EVENT_VOICE_ANNOUNCE_BIT); //Signal to announcement process to unblock.
+        }
 		
     }
 }
